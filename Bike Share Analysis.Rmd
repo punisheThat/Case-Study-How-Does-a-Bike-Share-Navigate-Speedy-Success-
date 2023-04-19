@@ -1,0 +1,755 @@
+---
+title: "How Does a Bike-Share Navigate Speedy Success?"
+author: "Samuel Sulo"
+date: "April 16, 2023"
+output: html_document
+---
+### Introduction
+
+As a junior data analyst working in the marketing analyst team at Cyclistic, a bike-share company in Chicago. The director of marketing believes the company’s future success depends on maximizing the number of annual memberships. Therefore, your team wants to understand how casual riders and annual members use Cyclistic bikes differently. From these insights, your team will design a new marketing strategy to convert casual riders into annual members. But first, Cyclistic executives must approve your recommendations, so they must be backed up with compelling data insights and professional data visualizations.
+
+The assignment for the analytic team is to analyze available dataset to answer following questions:
+
+1. How do annual members and casual riders use Cyclistic bikes differently?
+2. Why would casual riders buy Cyclistic annual memberships?
+3. How can Cyclistic use digital media to influence casual riders to become members?
+
+But, Lily Moreno the director of marketing and my manager has assigned me the first question to answer on "How do annual members and casual riders use Cyclistic bikes differently?".
+
+Based on the key questions, I will make 3 hypothesis related:
+
+1. Members and casual riders may have different ride durations. For example, 
+members may use Divvy bikes for longer durations than casual riders in a day.
+
+2. Members and casual riders may have different ride lengths for days. For example, 
+members may travel longer distances than casual riders in a day.
+
+3. The season of the year has a significant effect on the number of bike rides taken, regardless of whether the riders are members or casual users.
+
+
+
+For this analysis, the following libraries are used:
+
+### Install and Load Packages
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+install.packages("tidyverse", repos = "http://cran.rstudio.com/")
+install.packages ("lubridate", repos = "http://cran.rstudio.com/")
+install.packages("geosphere", repos = "http://cran.rstudio.com/")
+install.packages("knitr", repos = "http://cran.rstudio.com/")
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library("tidyverse")
+library("lubridate")
+library("geosphere")
+library("stats")
+library("knitr")
+```
+
+### 1. Data Collection & Preparation.
+For this project, I utilized the bike-sharing dataset for the year 2022, which can be downloaded from [here](https://divvy-tripdata.s3.amazonaws.com/index.html). The dataset is made available by Lyft Bikes and Scooters under the terms of this [license agreement](https://ride.divvybikes.com/data-license-agreement).
+
+After storing the data locally, I verified the credibility of the data by checking if it is ROCC (reliable, original, comprehensive, current, and cited). Once I was confident in the data's credibility, I opened the data to begin exploring and analyzing it.
+
+Opening the data.
+
+```{r echo=TRUE, message=FALSE}
+# Upload Divvy datasets (csv files) here
+Jan_2022 <- read.csv("C:/Users/User/Music/Bike_data_2022/202201_tripdata.csv")
+Feb_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202202_tripdata.csv")
+Mar_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202203_tripdata.csv")
+Apr_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202204_tripdata.csv")
+May_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202205_tripdata.csv")
+Jun_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202206_tripdata.csv")
+Jul_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202207_tripdata.csv")
+Aug_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202208_tripdata.csv")
+Sept_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202209_tripdata.csv")
+Oct_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202210_tripdata.csv")
+Nov_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202211_tripdata.csv")
+Dec_2022 <- read_csv("C:/Users/User/Music/Bike_data_2022/202212_tripdata.csv")
+```
+
+### 2. Wrangle Data and Combine Into a Single File
+In this section, is to prepare the data for analysis, but first i sorted and combined the datasets into a single file. While combining involved organizing and cleaning different datasets into a single file, and make sure the datasets column into same format. 
+
+```{r echo=TRUE}
+## 2.1 Create a list of monthly data frames for 2022.
+monthly_data_2022 <- list(Jan_2022, Feb_2022, Mar_2022, Apr_2022, 
+                          May_2022, Jun_2022, Jul_2022, Aug_2022, 
+                          Sept_2022, Oct_2022, Nov_2022, Dec_2022)
+```
+
+```{r}
+## Extract the column names of the first data frame.
+colnames_2022 <- colnames(monthly_data_2022[[1]])
+
+## Check if all data frames have the same column names as the first data frame.
+consistent_colnames <- all(sapply(monthly_data_2022, function(df) all(colnames(df) %in% colnames_2022)))
+```
+
+#### 2.2 Check the data type
+
+In this section is to check the "started_at" & "ended_at" column in each month's data frame before stack all into 1 datasets
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Use sapply to apply the function 'class' to each data frame in the list, and extract the class of the 'started_at' column for each month.
+sapply(list(Jan_2022, Feb_2022, Mar_2022, Apr_2022, May_2022, Jun_2022, 
+            Jul_2022, Aug_2022, Sept_2022, Oct_2022, Nov_2022, Dec_2022), 
+       function(x) class(x$started_at))
+sapply(list(Jan_2022, Feb_2022, Mar_2022, Apr_2022, May_2022, Jun_2022, 
+            Jul_2022, Aug_2022, Sept_2022, Oct_2022, Nov_2022, Dec_2022), 
+       function(x) class(x$ended_at))
+```
+
+The'started_at' and 'ended_at' columns in the first data frame (Jan_2022) are converted from character format to POSIXct format by the code, for further used analysis of date and time data.
+
+```{r}
+# Convert "started_at" & "ended_at" column to POSIXct in first data frame.
+Jan_2022$started_at <- as.POSIXct(Jan_2022$started_at, format = "%Y-%m-%d %H:%M:%S")
+Jan_2022$ended_at <- as.POSIXct(Jan_2022$ended_at, format = "%Y-%m-%d %H:%M:%S")
+```
+
+
+#### 2.3 Combine into single datasets
+
+After convert the "started_at" & "ended_at" column to POSICT, now can combine into single datasets.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Stack all month data frames into one datasets.
+bike_2022 <- bind_rows(Jan_2022, Feb_2022, Mar_2022, 
+                       Apr_2022, May_2022, Jun_2022, 
+                       Jul_2022, Aug_2022, Sept_2022, 
+                       Oct_2022, Nov_2022, Dec_2022)
+```
+
+```{r}
+# Recheck structure after combined data frame.
+str(bike_2022)
+```
+
+
+### 3. Data Cleaning 
+An essential part of data preparation and analysis is handling missing values. Due to its simplicity and suitability for dataset, I will in this project remove any rows that have missing values .
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Check and create new datasets for missing values in each column.
+na_df <- bike_2022[rowSums(is.na(bike_2022)) > 0,]
+nrow(na_df)
+
+# Investigate how many missing values in the column within the datasets.
+colSums(is.na(bike_2022))
+
+
+# Calculate the percentage of rows with missing value indicating end_lat and end_lng.
+(nrow(na_df[is.na(na_df$end_lat), ])/nrow(bike_2022))*100
+(nrow(na_df[is.na(na_df$end_lng), ])/nrow(bike_2022))*100
+```
+Only a very small portion of data i.e. 0.1 % has missing information about the end station. Hence, in the next section these data were removed.
+
+
+#### 3.1 Removing rows with missing data for my analysis
+
+Cleaning the bike_2022 data frame by removing rows with missing values in the end_lat column. The end_lng the column also has missing values, but we only need to remove missing values in one of the columns, as they are highly correlated. By choosing the end_lat column to remove missing values, will automatically removes in the end_lng column.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+cleaned_data <- bike_2022[!is.na(bike_2022$end_lat),]
+```
+
+After got the result above, we can see 6 column has the missing values with the numbers which start_station_name, start_station_id, end_station_name, en_station_id, end_lat and end_lng. But i wanted 
+
+```{r}
+# check the row remaining after deleting the missing values.
+colSums(is.na(cleaned_data))
+nrow(cleaned_data)
+```
+
+#### 3.2 Removing column 
+
+After that, I will remove the following columns that not included for my analysis.
+
+```{r}
+# remove column start_station_name, start_station_id, end_station_name, end_station_id
+cleaned_data <- cleaned_data %>% 
+  select(-c(start_station_name, start_station_id, end_station_name, end_station_id))
+```
+
+```{r}
+# recheck the column 
+colnames(cleaned_data)
+```
+
+```{r}
+# Recheck if there is still missing value
+colSums(is.na(cleaned_data))
+```
+
+Make sure there no more missing values from all columns then go to next step.
+
+
+### 4. Preparing data for analysis 
+A crucial step in the data analysis process is preparing data for analysis, which entails converting raw data into a format that can be used for statistical analysis.This process involve creating new columns, and scaling or normalizing data to make it suitable for analysis.
+
+
+#### 4.1 Inspect the new table that has been created 
+Understand the structure and characteristics the data frame. This include listing number of rows and dimensions of the data frame, previewing the first few rows of data, checking column data types, and getting a statistical summary of the data.
+
+```{r}
+#How many rows are in data frame.
+nrow(cleaned_data)  
+
+#Dimensions of the data frame.
+dim(cleaned_data) 
+
+#See the first 6 rows of data frame.
+head(cleaned_data)  
+
+#See list of columns and data types.
+str(cleaned_data)  
+
+#Statistical summary of data. Mainly for numerics.
+summary(cleaned_data)  
+```
+
+#### 4.2 Create new columns for analysis 
+Creating new columns for analysis is a crucial step in the data analysis process that involves deriving additional variables from existing data to gain insights and make more informed decisions. This process involves performing calculations or transformations on existing variables.
+
+Creating new columns for the hour of the day, day of the week, months, or seasons can provide valuable insights into patterns and trends within the data. These new variables can be derived from existing datetime data, and can help identify peak usage times, seasonality effects, or other patterns that may impact analysis and decision-making.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Create new columns.
+cleaned_data$hour_of_day <- hour(cleaned_data$started_at)
+cleaned_data$day_of_week <- wday(cleaned_data$started_at, label = TRUE)
+cleaned_data$month <- month(cleaned_data$started_at)
+cleaned_data$season <- ifelse(month(cleaned_data$started_at) %in% c(3, 4, 5), "Spring",
+                              ifelse(month(cleaned_data$started_at) %in% c(6, 7, 8), "Summer",
+                                     ifelse(month(cleaned_data$started_at) %in% c(9, 10, 11),"Fall", "Winter")))
+```
+
+
+#### 4.3 Calculate and create new column for ride duration
+Calculating the duration of each ride can provide valuable information on ride duration and usage patterns. This can be achieved by subtracting the ended_at and started_at for each ride in the dataset, resulting in a new column representing the duration of each ride as numeric.
+
+```{r}
+# Calculate ride duration in minutes.
+cleaned_data$ride_duration_minutes <- as.numeric(difftime(cleaned_data$ended_at, cleaned_data$started_at, units = "mins"))
+# Then format to 2 decimal points.
+cleaned_data$ride_duration_minutes <- round(cleaned_data$ride_duration_minutes, 2)
+```
+
+After that, check if any negative ride duration values in the cleaned data and displays the corresponding start and end times. This is an important step in ensuring data accuracy and consistency, as negative ride duration values are  likely indicate errors in data collection or processing.
+
+```{r}
+# check if negative numbers appear.
+head(select(cleaned_data[cleaned_data$ride_duration_minutes < 0, ], c(started_at, ended_at, ride_duration_minutes)))
+```
+
+```{r}
+# Count the negative number appear in ride_duration_minutes.
+nrow(cleaned_data[cleaned_data$ride_duration_minutes < 0, ])
+```
+
+```{r}
+# Calculate the percentage of negative values indicating on ride)_duration_minutes.
+(nrow(cleaned_data[cleaned_data$ride_duration_minutes < 0, ])/nrow(cleaned_data))*100
+```
+
+```{r}
+# removes ride_duration_minutes column has a value less than 0, i.e. where there are negative ride duration.
+cleaned_data <- cleaned_data[cleaned_data$ride_duration_minutes >= 0, ]
+```
+
+```{r}
+# Print summary statistics of ride_durations_minutes.
+summary(cleaned_data$ride_duration_minutes)
+```
+
+
+#### 4.3 Calculate and create new column for ride length
+Calculating the length of each ride can provide valuable information on ride length and usage patterns. This can be achieved by using the "start_lat" and "end_lat" and "geosphere package for each ride in the dataset, resulting in a new column representing the lentgh of each ride as numeric.
+
+```{r}
+# Create new column for ride_length in kilometers then add ride_length_km column and, divide by 1000 to convert meters to kilometers.
+cleaned_data$ride_length_km <- geosphere::distHaversine(
+  p1 = cbind(cleaned_data$start_lng, cleaned_data$start_lat),
+  p2 = cbind(cleaned_data$end_lng, cleaned_data$end_lat)
+) / 1000 
+```
+
+```{r}
+# Then format to 0 decimal points.
+cleaned_data$ride_length_km <- round(cleaned_data$ride_length_km, 2)
+```
+
+
+### 5. Conduct Descriptive Analysis
+For the descriptive analysis, this part involves exploring the data and summarizing its key characteristics, such as measures of central tendency, variability, and distribution. This type of analysis can provide insights into the patterns and trends present in the data, and help us understand the overall shape and structure of the data.
+
+
+#### 5.1.1 General analysis comparing between member and casual
+In this section, a general analysis is conducted to compare the usage patterns between members and casual. The aim is to gain insights into the differences in how the two types of riders use the bike-sharing service. 
+
+```{r echo=TRUE}
+# Create a table to comparing numbers between member and casual .
+member_summary <- cleaned_data %>%
+  group_by(member_casual) %>%
+  summarise(count = n())
+```
+
+```{r}
+# Graph for comparing number between member and casual.
+ggplot(member_summary, aes(x = member_casual, y = count)) +
+  geom_bar(aes(fill = member_casual), stat = "identity", position = "dodge") +
+  geom_text(aes(label=count), stat="identity", 
+            position=position_dodge(width=0.9), vjust=-0.5) +
+  labs(title = "Count of Member and Casual", x = "Member Type", y = "Count")
+```
+
+*  As shown in the graph, its shows that count between member type ride bicycle and the total for member is 3344951 (59.08%) has a higher value than casual total 2316808 rides (40.92%).
+
+*  Concluded that members have utilized the bike-sharing service more frequently than casual riders. 
+
+
+#### 5.1.2 Comparing for average ride duration and ride length between member type
+This section presents a general comparison between member and casual based on the average ride duration and ride length. By calculating the mean of these two variables, we can gain insights into the differences in riding patterns between the two groups. This information can be useful for understanding the ride behaviours and developing targeted marketing strategies.
+
+```{r echo=TRUE}
+# Create table ride summary for ride_duration_minutes between member and casual.
+ride_summary <- cleaned_data %>%
+  group_by(member_casual) %>%
+  summarize(avg_duration = mean(ride_duration_minutes),
+            avg_length = mean(ride_length_km))
+```
+
+```{r}
+# Graph for the ride duration(minutes) using ride summary between member and casual.
+ggplot(ride_summary, aes(x = member_casual, y = avg_duration, fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Member Type", y = "Average Ride Duration (minutes)", fill = "Member/Casual") +
+  ggtitle("Average Ride Duration Between Member and Casual")
+```
+
+* From the chart above, the member type for casual has high number in average ride duration(minutes) with 21.99 minutes than member 12.41 minutes.
+
+* Concluded that casual riders tend to have longer rides compared to member riders.
+
+ 
+```{r}
+# Graph for the ride length(km) using ride summary between member and casual.
+ggplot(ride_summary, aes(x = member_casual, y = avg_length, fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Member Type", y = "Average Length (km)", fill = "Member/Casual") +
+  ggtitle("Average Length Between Member and Casual")
+```
+
+* As we can see graph above,we can see the a bit of difference on average length (km) between member type that casual has ride longer 2.183723 km than member 2.112977 km.
+
+* Therefore, it can be concluded that, on average, casual riders tend to ride slightly farther compared to member riders.
+
+
+#### 5.1.3 Popular rideable type between member and casual
+This section aims to identify the most popular rideable type for both member and casual. By comparing the number of rides taken for each rideable type, we can gain insights into the preferences of each user group.
+
+```{r echo=TRUE}
+# Create a dataframe to compare which rideable type has most ride by both member and casual.
+rideable_counts <- cleaned_data %>%
+  group_by(rideable_type, member_casual) %>%
+  summarize(count = n()) 
+
+knitr::kable(rideable_counts)
+```
+
+```{r}
+# Graph which rideable type has most ride by both members and casual.
+ggplot(rideable_counts, aes(x = rideable_type, y = count)) + 
+  geom_bar(aes(fill = member_casual), stat = "identity", position = "dodge") +
+  labs(x = "Rideable Type", y = "Count", fill = "Member/Casual") +
+  ggtitle("Popular Rideable Types Between Member and Casual")
+```
+
+* The graph provided above displays the usage of different rideable types by member type. It shows that there are three types of rideables used by members, namely classic bikes, docked bikes, and electrical bikes.
+
+* The classic bike is the most commonly used rideable type by members, with a total count of 1709054 rides, while casual only used classic bikes 888890 times. The docked bike is used exclusively by casual, with a total count of 174858 rides. The electrical bike is also a popular rideable type for members, with a total count of 1635897 rides. In comparison, casual used electrical bikes 1253060 times.
+
+* It can be concluded that members tend to use classic and electrical bikes more frequently than casual, while casual has utilized all three types of rideables.
+
+
+#### 5.1.4 Rideable type most average duration between members and casual
+This section aims to identify the rideable type with the highest average duration for both member and casual. By comparing the average duration of rides for each rideable type, we can gain insights into how each member type uses Cyclistic bikes differently. 
+
+```{r echo=TRUE}
+# Create dataframe and check which rideable type the most average duration between members and casual.
+avg_duration_by_type <- cleaned_data %>%
+  group_by(member_casual, rideable_type) %>%
+  summarize(avg_duration = mean(ride_duration_minutes),
+            avg_length = mean(ride_length_km))
+
+knitr::kable(avg_duration_by_type)
+```
+
+```{r}
+# Graph to see the result for ride duration by rideable type between member and casual.
+ggplot(avg_duration_by_type, aes(x = rideable_type, y = avg_duration, 
+                                 fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Rideable Type", y = "Average Duration (Minutes)",
+       title = "Average Ride Duration by Rideable Type Between Member and Casual")
+```
+
+* Based on graph above, we can see the 3 difference rideable type on average ride duration(minutes).
+
+* From the classic bike, casual has average ride longer with 24.5 minutes than member 13.3 minutes. Same with electric bike also having the casual has average ride longer with 16.17 minutes than member 11.46 minutes. 
+
+* Notice that,  docked bike has the most highest average duration with 50.7078 minutes than other 2 rideable type, which may indicate that this type preferred by casual who are looking for longer rides.  
+
+
+#### 5.2.1 Season analysis comparing between member and casual
+Seasonal analysis of bike-sharing patterns reveals differences between member and casual. By conducting a seasonal analysis of bike-sharing patterns, we can gain insights into how members and casual differ in their bike usage habits throughout the year. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Create dataframe for both average ride duration and ride length by rideable type between members & casual for season.
+rides_by_season <- cleaned_data %>%
+  group_by(season, rideable_type, member_casual) %>%
+  summarize(avg_ride_length = mean(ride_length_km),
+            avg_ride_duration = mean(ride_duration_minutes))
+
+knitr::kable(rides_by_season)
+```
+
+
+```{r}
+# Plot the average ride duration by rideable type between member & casual for each season.
+ggplot(rides_by_season, aes(x = rideable_type, y = avg_ride_duration, fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Rideable Type", y = "Average Duration (Minutes)", 
+  title = "Comparing Average Ride Durations on Rideable Type by Season Between Member Type") +
+  facet_wrap(~season) +
+  theme(plot.title = element_text(size = 11))
+```
+
+* The analysis of bike-sharing patterns across different seasons reveals notable differences in the average ride length between casual and member users. During the Winter season, the average duration of classic bike rides was found to be 20.7 minutes for casual and 11.6 minutes for members. Similarly, for electric bikes, casual users had an average ride duration of 11.5 minutes, which was longer than the 10.17 minutes observed for member. In the Spring season, casual had the longest average ride duration of 27.1 minutes in classic bike, compared to 13.079 minutes for members. 
+
+* From the graph season in Fall, the average duration for classic bike has resulting the casual has more longer with 22.41 minutes than member 12.8 minutes. On the other hand,electric bike also resulting the casual ride more longer with 14.1 minutes than member with 10.99 minutes. The casual still has the most average ride duration in classic bike with 24.53 minutes than member with 14.25 minutes in Summer season and for electric bike also resulting the casual ride more longer with 17.24 minutes than member with 12.37 minutes.
+
+* Interestingly, the analysis reveals that only casual who rented docked bike across all seasons. During Winter, the average ride duration for casual users was 79.96 minutes, while in Spring, Fall, and Summer seasons, the average ride duration were 53.04 minutes, 44.48 minutes, and 50.77 minutes, respectively.  
+
+```{r}
+# Plot the average ride length by rideable type between member & casual for season.
+ggplot(rides_by_season, aes(x = rideable_type, y = avg_ride_length, fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Rideable Type", y = "Average Ride Length (km)", 
+       title = "Comparing Average Ride Length by Season, Rideable Type, and Membership Type") +
+  facet_wrap(~season) +
+  theme(plot.title = element_text(size = 11))
+```
+
+* The analysis of bike-sharing patterns across different seasons reveals notable differences in the average length between casual and member. During the Winter season, the average duration of classic bike rides was found to be 1.62 km for casual and 1.61 km for members. But, for electric bikes, casual users had an average ride length of 1.93 km, which was shorter compare 1.96 km  observed for members. In the Spring season, casual had the longest average ride length of 2.37 km in electric bike, compared to 2.2 km for members. 
+
+* From the result season in Fall, the average length for classic bike has resulting the casual has more longer with 2.5 km than member 1.99 minutes. On the other hand, electric bike resulting the casual ride shorter with 2.14 km than member with 2.21 km.
+
+The casual still has the most longer for average length in classic bike with 2.12 km than member with 2.07 in Summer season. But for electric bike resulting the average length for casual ride shorter with 2.30 km than member with 2.45 km
+
+* Interestingly, the analysis reveals that only casual using rented docked bikes across all seasons. During Winter, the average ride length for casual users was 1.95	km, while in Spring, Fall, and Summer seasons, the average ride duration were 2.12 km, 2.18 km , and 2.22 km, respectively.  
+ 
+
+#### 5.2.1 Monthly analysis comparing between member and casual
+The monthly analysis of bike-sharing patterns compares the usage between member and casual over different months. This analysis provides insights into how frequently users of each type use the bike-sharing service, how long their rides are, and how usage patterns differ between different months. These insights can help bike-sharing companies better understand their member type and optimize their services to meet their needs.
+
+```{r echo=TRUE}
+# Create dataframe counting number which month has most ride between members & casual.
+counts_by_month <- cleaned_data %>%
+  group_by(month, member_casual) %>%
+  summarize(count = n())
+
+knitr::kable(counts_by_month)
+```
+
+```{r}
+# Plot the number which month has most ride between members & casual.
+ggplot(counts_by_month, aes(x = month, y = count, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  scale_x_continuous(breaks = 1:12) +
+  labs(title = "Number of Rides by Month Between Member and Casual",
+       x = "Month", y = "Number of Rides",
+       fill = "Member Type") +
+  theme(legend.position = "top", axis.text.y = element_text(size = 8))
+```
+
+* The graph above shows the number of bike rides by month for member and casual users. It indicates that August had the highest number of rides for members, with 426,913 rides, while June had the highest number for casual users, with 405,179 rides.
+
+* Both member and casual riders showed an increasing trend from March to July, but then started to decline from August to December. Interestingly, casual riders showed a steeper decline from August to December, while the decline in the number of member rides began a month later, from September to December.
+
+* It is interesting to observe that both member and casual riders showed an increasing trend in their rides at the beginning of Spring, starting from March. However, the decline in the number of rides for casual riders occurred earlier, starting from August (the end of Summer) until December (early Winter). On the other hand, the decline for member rides started later, from September (early Spring) until December (early Winter).
+
+
+#### 5.2.2 Monthly analysis comparing in average ride duration between member and casual
+This monthly analysis compares the average ride duration between member and casual. It examines the differences in ride duration patterns for each user type across different months, shedding light on potential trends and seasonal variations in ride behavior.
+
+```{r echo=TRUE}
+# Create dataframe for both average ride duration and ride length between members & casual for monthly.
+avg_duration_by_month <- cleaned_data %>% 
+  group_by(month, member_casual) %>% 
+  summarize(avg_ride_duration = mean(ride_duration_minutes), 
+            avg_ride_length = mean(ride_length_km))
+
+knitr::kable(avg_duration_by_month)
+```
+
+```{r}
+# Plot the average ride duration between member & casual by month.
+ggplot(avg_duration_by_month, aes(x = month, y = avg_ride_duration, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  scale_x_continuous(breaks = 1:12) +
+  labs(title = "Average Ride Duration by Month Between Member Type",
+       x = "Month", y = "Average Ride Duration (Minutes)",
+       fill = "Member Type") +
+  theme(legend.position = "top", axis.text.y = element_text(size = 8))
+```
+
+* The graph depicts the average length of bike rides per month for both members and casual. Casual had the highest average ride duration in May at 25.54 minutes, followed by a gradual decline to 14.11 minutes in December. Members, on the other hand, had the highest average ride duration in June at 23.38 minutes, followed by a gradual decline to 10.36 minutes in December.
+
+* Interestingly, casual had slightly longer average ride duration than members for each month of the year, which could suggest that casual riders are comfortable with the prices charged for rides. However, further analysis is necessary to confirm this hypothesis.
+
+```{r}
+# Plot the average ride length between member & casual by month.
+ggplot(avg_duration_by_month, aes(x = month, y = avg_ride_length, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  scale_x_continuous(breaks = 1:12) +
+  labs(title = "Average Ride Length by Month and Rider Type",
+       x = "Month", y = "Average Ride Length (km)",
+       fill = "Member Type") +
+  theme(legend.position = "top", axis.text.y = element_text(size = 8))  
+```
+
+* The graph displays the average ride lengths per month for both member and casual. It is notable that the average ride lengths for each month has slightly differs between the two groups. The highest average ride length for casual was recorded in May at 2.2596 km, while for member it was recorded in June at 2.2605 km. On the other hand, the lowest average ride length was recorded in December at 1.72 km for casual riders, and in February at 1.75 km for member riders.
+
+* Interestingly, the average ride length for member was slightly longer than the average duration recorded. This suggests that members tend to ride bicycles more frequently than casual, since members are most used bike and have an advantage in this ride. However, further analysis is required to confirm this observation.
+
+
+#### 5.3.1 Day of week analysis comparing between member and casual
+This analysis compares the average ride duration between member and casual based on the day of the week. It helps to identify any patterns or differences in the way these member type use the bike-sharing service on different days of the week.
+
+```{r echo=TRUE}
+# Create dataframe to compare of usage patterns by day of week.
+day_of_week_summary <- cleaned_data %>%
+  group_by(day_of_week, member_casual) %>%
+  summarise(count = n())
+
+knitr::kable(day_of_week_summary)
+```
+
+```{r}
+# Plot the result dataframe to compare the usage between member & casual by day of the week.
+ggplot(day_of_week_summary, aes(x = day_of_week, y = count, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = count), position = position_dodge(width = 0.9), 
+            vjust = -0.5, size = 2) +
+  labs(x = "Day of Week", y = "Count", fill = "Member/Casual") +
+  ggtitle("Usage Patterns by Day of Week Between Member and Casual")
+```
+
+* The graph above displays the usage patterns of Cyclistic bikes by day of the week for member and casual. The data reveals that member have the highest usage on all days of the week except for Saturday, where casual out number them (471,561 rides for casual compared to 442,612 for member).
+
+* Although casual riders have the lowest usage overall, the graph illustrates that their usage patterns gradually increase from Wednesday to Saturday. In contrast, member usage slightly decreases on Sundays compared to the other days of the week.
+
+* It is noteworthy that the number of bike rides taken by members is consistently higher than that of casual riders on each day of the week. This could suggest that the price offered to members is more attractive and cost-effective for regular bike users.
+
+
+#### 5.3.2 Day of week analysis comparing average duration and average length between member and casual
+The analysis compares the average ride duration and length for member and casual across different days of the week. It aims to provide insights into whether there are any notable differences in the way these two groups use the bike-sharing service on different days.
+
+```{r echo=TRUE}
+# Create dataframe of average duration and average length to compare of usage patterns by day of week.
+duration_summary <- cleaned_data %>%
+  group_by(day_of_week, member_casual) %>%
+  summarize(avg_duration = mean(ride_duration_minutes),
+            avg_length = mean(ride_length_km))
+
+knitr::kable(duration_summary)
+```
+
+```{r}
+# Plot the dataframe of average duration to compare of usage patterns by day of week.
+ggplot(duration_summary, aes(x = day_of_week, y = avg_duration, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = round(avg_duration, 2)), position = position_dodge(width = 0.9),
+            vjust = -0.5, size = 2) +
+  labs(x = "Day of Week", y = "Average Duration (Minutes)", fill = "Member/Casual") +
+  ggtitle("Average Ride Duration by Day of Week Between Member and Casual") +
+  theme(legend.position = "bottom")
+```
+
+* The graph above shows the average ride duration by day of week for both member and casual. Surprisingly, the graph reveals that casual have the highest average ride duration across all days of the week.
+
+* Although member have the lowest average ride duration throughout the week, it is interesting to note that the average duration remains relatively stable, ranging from 11.8142 minutes to 13.6855 minutes.
+
+* Additionally, we can observe a trend in which the average ride duration starts at its lowest on Wednesday and gradually increases until Sunday.
+
+```{r}
+# Plot the dataframe of average length to compare of usage patterns by day of week.
+ggplot(duration_summary, aes(x = day_of_week, y = avg_length, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  geom_text(aes(label = round(avg_length, 2)), position = position_dodge(width = 0.9), 
+            vjust = -0.5, size = 2) +
+  labs(x = "Day of Week", y = "Average Ride Length (km)", fill = "Member/Casual") +
+  ggtitle("Average Ride Length by Day of Week and Member/Casual Riders") +
+  theme(legend.position = "bottom")
+```
+
+* The above graph illustrates the average ride length by day of the week for both member and casual. Notably, there is a striking resemblance in the ride lengths between the member type for each day of the week.
+
+* From the graph, it can be observed that casual riders have marginally longer average ride lengths than members. The longest average ride length for casual riders is recorded on Saturdays at 2.30 km, while for members it is on Wednesdays at 2.20 km.
+
+
+#### 5.4.1 Hour of day comparing between member and casual
+The analysis compares the bike ride patterns between member and casual by hour of day, including average ride duration and length. The aim is to provide insights into potential differences in how these two groups utilize the bike-sharing service on different hour.
+
+```{r echo=TRUE}
+# Create dataframe to compare of usage patterns by hours of day.
+ride_counts <- cleaned_data %>%
+  group_by(hour_of_day, member_casual) %>%
+  summarize(count = n())
+
+knitr::kable(ride_counts)
+```
+
+```{r}
+# Plot the dataframe to compare of usage patterns by hours of day.
+ggplot(ride_counts, aes(x = hour_of_day, y = count, fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Number of Rides by Hour of Day Between Member and Causal",
+       x = "Hour of Day", y = "Number of Rides",
+       fill = "Rider Type") +
+  theme(legend.position = "bottom")
+```
+
+* The graph displays the hourly number of rides for both member and casual. It is noticeable that the number of rides by members is higher compared to casual.
+
+* According to the graph, the highest number of rides throughout the day is around 5 p.m. with a total of 341070 rides recorded for members. The graph also shows a gradually increase in the number of rides by members starting from 3 a.m. with 12307 rides until it reaches the peak around 5 p.m.
+
+* The graph reveals an interesting pattern of a very low number of rides for both casual and member between 3 a.m. and 4 a.m. before it starts to increase gradually and reaches the highest number of rides around 5 p.m. for both types of users.
+
+
+#### 5.5.1 Hour of day analysis comparing between member and casual
+Hour of day analysis compares the usage patterns of member and casual of a bike-sharing service during different hours of the day. This analysis can provide valuable insights into the peak hours of usage for each member type and help bike-sharing companies adjust their services accordingly.
+
+```{r echo=TRUE}
+# Create dataframe of average ride duration and average ride length to compare of usage patterns between member and casual by hours of day.
+ride_duration_summary <- cleaned_data %>%
+  group_by(hour_of_day, member_casual) %>%
+  summarize(avg_ride_duration = mean(ride_duration_minutes),
+            avg_ride_length = mean(ride_length_km))
+
+knitr::kable(ride_duration_summary)
+```
+
+```{r}
+# Graph the dataframe of average ride duration to compare of usage patterns between member and casual by hours of day.
+ggplot(ride_duration_summary, aes(x = hour_of_day, y = avg_ride_duration, 
+                                  fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Duration by Hour of Day Between Member and Casual",
+       x = "Hour of Day", y = "Average Duration (Minutes)", 
+       fill = "Member/Casual") +
+  theme(legend.position = "bottom")
+```
+
+* The graph above shows the average ride duration (in minutes) by hourly for both member and casual. Notably, the average ride duration for casual is higher than that of member.
+
+* The highest average ride duration throughout the day is observed around 11 a.m., with a recorded duration of 26.11 minutes for casual. As seen in the previous graph, the average ride duration for casual starts to increase around this time and peaks around 5 p.m.
+
+* An interesting pattern occur for member, where the lowest average ride duration of 10.51 minutes is recorded around 5 a.m. and the highest average duration of 13.27 minutes is recorded around 5 p.m. This suggests that the average ride duration for member follows a different trend compared to casual.
+
+```{r}
+# Graph the dataframe of average ride length to compare of usage patterns between member and casual by hours of day.
+ggplot(ride_duration_summary, aes(x = hour_of_day, y = avg_ride_length,
+                                  fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Length by Hour of Day Between Member and Casual",
+       x = "Hour of Day", y = "Average Ride Length (km)",
+       fill = "Member/Casual") +
+  theme(legend.position = "bottom")
+```
+
+* The graph displays the average ride length (in kilometers) per hour for both member and casual. Interestingly, casual users have a slightly higher average ride length than members.
+
+* Both member types exhibit a unique pattern, with slightly different average lengths over the day. The highest average ride length for members is 2.27 km around 7 a.m., while the highest for casual is 2.36 km at 4 p.m. Meanwhile, the lowest average ride length for members is 1.89 km at 3 a.m., while the lowest for casual is around 1.98 km at 8 p.m.
+
+
+
+#### 5.6 Hypothesis
+A hypothesis in data analysis is a tentative explanation or prediction that proposes a possible relationship between variables. Hypotheses guide the data analysis process by providing a specific and testable explanation for a phenomenon or observation.
+
+In this analysis, three hypotheses were formulated to explore potential differences between member and casual riders in terms of ride duration and length, as well as differences in the number of rides taken across different seasons. Two statistical modeling techniques, the t-test and ANOVA, were used to test the hypotheses and evaluate the statistical significance of the results. The t-test was used for hypotheses 1 and 2, while ANOVA was used for hypothesis 3.
+
+
+#### 1.Member and casual may have different ride durations for hour of day. 
+
+```{r}
+t.test(avg_ride_duration ~ member_casual, data = ride_duration_summary)
+```
+
+```{r}
+#Plot
+ggplot(ride_duration_summary, aes(x = member_casual, y = avg_ride_duration)) +
+  geom_boxplot() +
+  labs(x = "Rider Type", y = "Ride Duration (minutes)") +
+  ggtitle("Distribution of Ride Duration by Rider Type")
+```
+
+Based on the output of the t-test suggests that there is a significant difference in the average ride duration 
+between members and casual. The mean ride duration for casual is 20.68 minutes, 
+while for members it is 12.15 minutes, with a 95% confidence interval between 7.11 and 
+9.94 minutes. The p-value of 3.415e-12 indicates that this difference is statistically 
+significant, and the t-value of 12.421 with 25.002 degrees of freedom suggests a strong 
+evidence for rejecting the null hypothesis that the true difference in means between 
+the two groups is equal to 0. 
+Therefore, we can conclude that there is a significant difference
+in the average ride duration between members and casual.
+
+
+#### 2. Members and casual riders may have different ride lengths for hour of days. 
+```{r}
+t.test(avg_ride_length ~ member_casual, data = ride_duration_summary)
+```
+
+```{r}
+#Plot
+ggplot(ride_duration_summary, aes(x = member_casual, y = avg_ride_length)) +
+  geom_boxplot() +
+  labs(x = "Rider Type", y = "Ride Length (km)") +
+  ggtitle("Distribution of Ride Length by Rider Type")
+```
+
+Based on the results of the t-test, there is evidence to suggest that there is a statistically significant difference in the mean ride length between casual and member. The p-value of 0.02227 indicates that the probability of observing such a difference by chance alone is relatively low. The confidence interval of (0.01021111, 0.12673067) suggests that the true difference in means between the two groups is likely to fall within this range 95% of the time. Therefore, it can be concluded that casual and members have different average ride lengths. Casual may be more likely to take longer rides than member.
+
+#### 3. The season of the year has a significant effect on the number of bike rides taken, regardless of whether the riders are members or casual users.
+```{r}
+anova1 <- aov(avg_ride_duration ~ season + member_casual, data = rides_by_season)
+summary(anova1)
+```
+
+This table shows the results of an ANOVA test that was conducted to evaluate whether there are significant differences in the number of bike rides taken across different seasons and between casual and member. The table provides information on the degrees of freedom (Df), the sum of squares (Sum Sq), the mean squares (Mean Sq), the F-value, and the p-value (Pr(>F)) for each factor and the residuals.
+
+The "season" factor is significant with a p-value of 0.0038, indicating that there are significant differences in the number of bike rides taken across different seasons. The "member_casual" factor is not significant with a p-value of 0.5434, indicating that there is no significant difference in the number of bike rides taken between casual and member riders. The residual sum of squares is 0.3571, which represents the unexplained variation in the data.
+
+Overall, these results suggest that season has a significant effect on the number of bike rides taken, while the member type (casual or member) does not.
+
+
+### 6. Conclusion and Recommendations
+
+Based on the results of data analysis, the found that member type ride bicycle used more by member with 59.08% and the casual 40.92% and they have different preferences for rideable types. Member tend to use classic bike (30.19%) and electric bike (28.9%) than casual, while casual prefer the 3 different rideable type which is classic bike(15.7%), electric bike (22.13%) and docked bike (3.09%). 
+
+Additionally, the analysis have found that there is a statistically significant difference in the average ride duration between member and casual from 4 aspect time whether in season, months, day of the week and hour of the day. Casual tend to take longer rides duration than members. For example, around 11 a.m., with a recorded the highest duration of 26.1 minutes by casual than the member highest recorded 13.27 minutes is around 5 p.m. Moreover, during the May of month, casual highest throughout the year recorded 25.54 minutes for average duration while for member, the highest average ride duration is on June recorded 23.38 minutes. 
+
+On the other hand, the analysis have found that there is a statistically a bit difference in the average ride length between member and casual from 4 aspect time whether in season, month, day of the week and hour of the day. For example in the seasonally result, the data shows that average ride length quite similar between member and casual in terms of classic bike and electric bike. For member, they mostly used the electric bike on season Fall, Summer and Winter than casual except on Spring as contrast for casual mostly use classic bike and docked bike for all season than member. This may suggest the price per charge of classic bike and docked tend to low rather electric bike which maybe has special offer for member. Additionally, the data has shown that Summer are the most rides both member type which casual recorded 405179 (7.16 %) on July, and for member recorded 426913 (7.54%) on August. Not to forget to mention, the average duration by hour between member type shows that casual dominate all hours of the day.
+
+Besides, the statistical modeling was run to test potential differences between member and casual in terms of ride duration and length, as well as differences in the number of rides taken across different seasons. Using t-test for hypothesis 1 suggests a strong evidence for rejecting the null hypothesis that the true difference in means between the two groups is equal to 0 which mean there are significant difference in the average ride duration between members and casual. Using t-test for hypothesis 2, suggests that the true difference that casual and members have different average ride lengths which Casual may be more likely to take longer rides than member. For the hypothesis 3 using ANOVA suggest that season has a significant effect on the number of bike rides taken, while the member type (casual or member) does not.
+
+
+
+#### Recommendation
+
+The company could offer promotions or incentives to encourage more casual and member to use docked bikes, or it could invest in more electric bikes to meet the demand from casual riders.
+
+It is also recommended that the company collect more data to confirm these findings like using a standardized data entry form, performing regular data quality checks and implementing data validation checks since there a lot of missing issues data. Moreover is to identify any other variables that may be important predictors such demographic factors price, weather condition of rideable trip counts and duration.
